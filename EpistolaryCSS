@@ -1,0 +1,22 @@
+:root{
+  --ink:#1a1a1a; --paper:#faf7f2; --accent:#6e4b3a; --muted:#777;
+  --mono: ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --serif: "Iowan Old Style","Palatino Linotype",serif;
+  --sans: Inter,system-ui,-apple-system,Segoe UI,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#f2efe9;color:var(--ink);font:16px/1.5 var(--sans)}
+.container{max-width:900px;margin:48px auto;padding:24px}
+.badge{font:12px var(--mono);text-transform:uppercase;letter-spacing:.08em;
+  border:1px solid #ccc;padding:2px 6px;border-radius:4px;color:#555}
+.stamp{display:inline-block;border:2px solid #8a1d1d;color:#8a1d1d;
+  padding:.2rem .45rem;border-radius:6px;font:700 12px var(--mono);
+  transform:rotate(-6deg);opacity:.9}
+.hr{height:1px;background:linear-gradient(90deg,#0000,#bbb,#0000);margin:16px 0}
+.meta{color:var(--muted);font:13px}
+.redact{background:#111;color:#111;border-radius:3px; padding:0 .35em}
+.note{font:14px;color:#333;background:#fffbe6;border:1px solid #f0e0a0;padding:.5rem;border-radius:6px}
+code,kbd,pre{font-family:var(--mono)}
+.kv{display:grid;grid-template-columns:140px 1fr;gap:.25rem .75rem;font:14px var(--mono)}
+.kv .k{color:#555}
+</style>
