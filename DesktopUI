@@ -1,0 +1,19 @@
+<style>
+.desktop{background:linear-gradient(180deg,#0f172a,#1e293b);min-height:80vh;padding:24px;color:#e5e7eb;border-radius:14px}
+.win{background:#0b1220;border:1px solid #334155;border-radius:10px;overflow:hidden}
+.titlebar{display:flex;align-items:center;gap:8px;background:#111827;color:#cbd5e1;padding:8px 12px}
+.dot{width:10px;height:10px;border-radius:50%}
+.dot.red{background:#f87171}.dot.yellow{background:#fbbf24}.dot.green{background:#34d399}
+.files{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;padding:12px}
+.file{background:#0f172a;border:1px solid #263043;border-radius:8px;padding:10px}
+.file .name{font:13px var(--mono)}
+</style>
+<div class="container desktop">
+  <div class="win">
+    <div class="titlebar"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span><strong style="margin-left:8px">Recovered Files</strong></div>
+    <div class="files">
+      <div class="file"><div>📄</div><div class="name">memo-A1172.txt</div><div class="meta">12 KB • Declassified</div></div>
+      <div class="file"><div>🖼️</div><div class="name">cat-hex.png</div><div class="meta">48 KB • Corrupted</div></div>
+    </div>
+  </div>
+</div>
