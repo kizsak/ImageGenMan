@@ -1,0 +1,106 @@
+// ===============================
+// Masked Pixel Sort — Thresholded
+// ===============================
+// Needs: "input.jpg" and "mask.png" in /data.
+// Only pixels where mask brightness >= MASK_THRESH will be sorted.
+// TEACHING GOAL: show how to combine two images (content + mask) to control effect.
+//
+// What students learn:
+// - Using a secondary image as a mask
+// - Thresholding, blending, falloff
+// - Region-limited image processing
+
+PImage img, maskImg, out;
+
+// ===== EXPERIMENT: tweak these =====
+float MASK_THRESH = 0.5;  // mask brightness 0..1 to enable sorting
+float EDGE_SOFT   = 0.15; // soften near threshold (0..0.5) for partial sorting
+boolean ASCENDING = false;
+int MIN_SEG = 6;
+int MAX_SEG = 9999;
+float PROB_SORT = 1.0;
+int PASS_COUNT = 1;
+// ===================================
+
+void settings() { size(1200, 1200); }
+
+void setup() {
+  surface.setTitle("Masked Pixel Sort");
+  img = loadImage("input.jpg");
+  maskImg = loadImage("mask.png");
+  if (img == null || maskImg == null) {
+    println("Place input.jpg and mask.png in /data");
+    exit();
+  }
+  // Fit both to canvas same size
+  img.resize(width, 0);
+  if (img.height > height) img.resize(0, height);
+  maskImg.resize(img.width, img.height);
+
+  out = img.copy();
+  maskedSortPasses();
+  image(out, 0, 0);
+  println("Done. 's' to save.");
+}
+
+void draw(){}
+
+void keyPressed(){ if (key=='s'||key=='S') saveFrame("frames/masked-sort-####.png"); }
+
+void maskedSortPasses() {
+  for (int pass = 0; pass < PASS_COUNT; pass++) {
+    out.loadPixels();
+    maskImg.loadPixels();
+    for (int y = 0; y < out.height; y++) {
+      int x = 0;
+      while (x < out.width) {
+        // Find qualifying run per mask
+        while (x < out.width && !maskQualifies(x, y)) x++;
+        if (x >= out.width) break;
+
+        int start = x;
+        while (x < out.width && maskQualifies(x, y)) x++;
+        int end = x - 1;
+
+        int segLen = end - start + 1;
+        if (segLen >= MIN_SEG && segLen <= MAX_SEG && random(1) < PROB_SORT) {
+          int[] buf = new int[segLen];
+          arrayCopy(out.pixels, y*out.width + start, buf, 0, segLen);
+          sortByBrightness(buf, ASCENDING);
+          arrayCopy(buf, 0, out.pixels, y*out.width + start, segLen);
+        }
+      }
+    }
+    out.updatePixels();
+  }
+}
+
+boolean maskQualifies(int x, int y) {
+  int c = maskImg.pixels[y*maskImg.width + x];
+  float m = brightness(c)/100.0;
+  // ===== EXPERIMENT: try using ALPHA(mask) to draw soft shapes from Photoshop =====
+  // Soft edge acceptance:
+  float t = MASK_THRESH;
+  if (m >= t) return true;
+  // Near-threshold probabilistic pass for "feathered" borders
+  if (EDGE_SOFT > 0 && m >= t - EDGE_SOFT) {
+    float p = map(m, t-EDGE_SOFT, t, 0.0, 1.0);
+    return random(1) < p;
+  }
+  return false;
+}
+
+void sortByBrightness(int[] arr, boolean ascending) {
+  for (int i = 0; i < arr.length-1; i++) {
+    for (int j = 0; j < arr.length-1-i; j++) {
+      float bj = brightness(arr[j]);
+      float bj1 = brightness(arr[j+1]);
+      boolean swap = ascending ? (bj > bj1) : (bj < bj1);
+      if (swap) {
+        int tmp = arr[j];
+        arr[j] = arr[j+1];
+        arr[j+1] = tmp;
+      }
+    }
+  }
+}
