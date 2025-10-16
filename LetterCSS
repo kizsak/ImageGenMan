@@ -1,0 +1,50 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Epistolary Letter</title>
+<link rel="stylesheet" href="base.css">
+<style>
+.paper{
+  background:var(--paper); box-shadow: 0 10px 30px #0000001a;
+  padding:48px 64px; border:1px solid #e6e0d6; border-radius:10px;
+  font-family: var(--serif);
+}
+.letter-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:32px}
+.address{white-space:pre-line}
+.signature{margin-top:28px}
+.footer{margin-top:36px;font:13px var(--mono);color:#666}
+</style>
+<div class="container">
+  <div class="paper">
+    <div class="letter-head">
+      <div class="address">
+        <!-- EXPERIMENT: change sender identity -->
+        <strong>Aria Patel</strong>
+        Archivist’s Office
+        Western Annex, Vault 03
+      </div>
+      <div class="meta" style="text-align:right">
+        <div><span class="badge">Document</span> #A-1172</div>
+        <div>Date: <time datetime="2049-04-17">April 17, 2049</time></div>
+        <div class="stamp">Declassified</div>
+      </div>
+    </div>
+
+    <p><!-- EXPERIMENT: salutation style -->Dear Milo,</p>
+
+    <p>By the time you read this, the corridor lights will have dimmed to maintenance levels. The server you asked about isn’t gone—it’s <em>migrating</em>. The logs say otherwise, but the logs have learned to lie.</p>
+
+    <p>Enclosed you’ll find the checksum fragment you requested. Compare it to the shard labeled <code>fe21:…:a8</code>. If they resonate, proceed with the <span class="redact">████████</span> routine and record the anomaly index.</p>
+
+    <p>—A</p>
+
+    <div class="signature">
+      <!-- EXPERIMENT: swap cursive image or system cursive font -->
+      <img src="signature.png" alt="signature" height="48">
+    </div>
+
+    <div class="footer">
+      <!-- EXPERIMENT: add marginalia or footnotes -->
+      P.S. If the cat appears in the logs again, do not feed it timestamps.
+    </div>
+  </div>
+</div>
