@@ -1,0 +1,12 @@
+<style>
+.transcript{background:#fff;border:1px solid #e6e6e6;border-radius:10px;padding:20px}
+.line{display:grid;grid-template-columns:120px 1fr;gap:.5rem .75rem;margin:6px 0}
+.speaker{font-weight:600}
+.time{color:#999;font:12px var(--mono)}
+.stage{color:#6b7280;font-style:italic}
+</style>
+<div class="container transcript">
+  <div class="line"><div class="speaker">Interviewer</div><div>State your name for the record.</div></div>
+  <div class="line"><div class="speaker">Milo</div><div>Milo Thompson. The cat prefers base-16.</div></div>
+  <div class="line"><div class="speaker stage">[laughter]</div><div class="time">00:02:14</div></div>
+</div>
