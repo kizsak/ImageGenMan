@@ -1,0 +1,109 @@
+// =======================
+// Pixel Sort — Brightness
+// =======================
+// Drop an image named "input.jpg" in the sketch's /data folder.
+// Press 's' to save output to /frames.
+// TEACHING GOAL: show how to segment a row by a threshold, then sort only those segments.
+//
+// What students learn:
+// - Reading/writing pixels
+// - Segmenting by condition (brightness threshold)
+// - Sorting subarrays
+// - Tunable parameters and "what-if" experiments
+
+PImage img, out;
+
+// ===== EXPERIMENT: tweak these =====
+float THRESH = 0.45;     // brightness threshold 0..1 (try 0.2–0.8)
+float PROB_SORT = 0.90;  // chance we sort a qualifying segment (try 0.3–1.0)
+boolean ASCENDING = true;// sort brightest first or darkest first
+int MIN_SEG = 8;         // minimum segment length to bother sorting
+int MAX_SEG = 99999;     // maximum segment length (caps huge runs)
+int PASS_COUNT = 1;      // number of full passes (1–5 changes strength)
+// ===================================
+
+void settings() {
+  // Match input aspect on first run (optional). You can also fix a size:
+  size(1200, 1200);
+}
+
+void setup() {
+  surface.setTitle("Pixel Sort — Brightness");
+  img = loadImage("input.jpg");
+  if (img == null) {
+    println("Place input.jpg in /data");
+    exit();
+  }
+  // Fit to canvas while keeping ratio:
+  img.resize(width, 0);
+  if (img.height > height) img.resize(0, height);
+  out = img.copy();
+  pixelSortPasses();
+  image(out, 0, 0);
+  println("Done. Press 's' to save.");
+}
+
+void draw() {
+  // static
+}
+
+void keyPressed() {
+  if (key == 's' || key == 'S') saveFrame("frames/pixelsort-####.png");
+}
+
+// ---------- core logic ----------
+void pixelSortPasses() {
+  for (int pass = 0; pass < PASS_COUNT; pass++) {
+    out.loadPixels();
+    for (int y = 0; y < out.height; y++) {
+      // find segments of pixels ABOVE threshold
+      int x = 0;
+      while (x < out.width) {
+        // skip non-qualifying pixels
+        while (x < out.width && !qualifies(out.pixels[y*out.width + x])) x++;
+        if (x >= out.width) break;
+
+        // start of qualifying run
+        int start = x;
+        while (x < out.width && qualifies(out.pixels[y*out.width + x])) x++;
+        int end = x - 1; // inclusive
+
+        int segLen = end - start + 1;
+        if (segLen >= MIN_SEG && segLen <= MAX_SEG && random(1) < PROB_SORT) {
+          // copy run
+          int[] buf = new int[segLen];
+          arrayCopy(out.pixels, y*out.width + start, buf, 0, segLen);
+          // sort by brightness
+          sortByBrightness(buf, ASCENDING);
+          // write back
+          arrayCopy(buf, 0, out.pixels, y*out.width + start, segLen);
+        }
+      }
+    }
+    out.updatePixels();
+  }
+}
+
+boolean qualifies(int argb) {
+  // ===== EXPERIMENT: try sorting on red/green/blue/chroma instead of brightness =====
+  float b = brightness(argb) / 100.0; // Processing brightness is 0..100
+  return b >= THRESH;
+}
+
+void sortByBrightness(int[] arr, boolean ascending) {
+  // stable sort via Java Arrays + custom comparator is tricky with ints;
+  // implement simple comparator sort by converting to Float[] indices.
+  // For clarity to students, we’ll do a simple bubble-like sort (fine on short segments).
+  for (int i = 0; i < arr.length-1; i++) {
+    for (int j = 0; j < arr.length-1-i; j++) {
+      float bj = brightness(arr[j]);
+      float bj1 = brightness(arr[j+1]);
+      boolean swap = ascending ? (bj > bj1) : (bj < bj1);
+      if (swap) {
+        int tmp = arr[j];
+        arr[j] = arr[j+1];
+        arr[j+1] = tmp;
+      }
+    }
+  }
+}
