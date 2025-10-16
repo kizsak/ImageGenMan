@@ -1,0 +1,120 @@
+// =========================
+// Floyd–Steinberg Dithering
+// =========================
+// Place "input.jpg" in /data.
+// TEACHING GOAL: palette quantization + error diffusion.
+//
+// Keys:
+// '1' = 1-bit (black/white)
+// '2' = 4-level grayscale
+// '3' = custom 4-color palette
+// 's' = save output
+
+PImage img, out;
+int mode = 3; // start on custom palette
+
+// ===== EXPERIMENT: palettes =====
+color[] paletteBW     = { color(0), color(255) };
+color[] paletteGray4  = { color(0), color(85), color(170), color(255) };
+color[] paletteCustom = {
+  // Try your course palette here:
+  #FF75FF, #3DFFEC, #FFCE5C, #FF5C8D
+};
+
+void settings(){ size(900, 900); }
+void setup(){
+  surface.setTitle("Floyd–Steinberg Dithering");
+  img = loadImage("input.jpg");
+  if (img == null) {
+    println("Place input.jpg in /data");
+    exit();
+  }
+  img.resize(width, 0);
+  if (img.height > height) img.resize(0, height);
+  applyDither();
+}
+
+void draw(){
+  image(out, 0, 0);
+  fill(0,150);
+  noStroke();
+  rect(10, 10, 250, 80);
+  fill(255);
+  text("Mode: " + modeLabel() + "   Keys: 1/2/3, S save", 20, 40);
+  text("Try editing paletteCustom[]", 20, 70);
+}
+
+String modeLabel(){
+  if (mode==1) return "1-bit BW";
+  if (mode==2) return "4-level Gray";
+  return "Custom 4-color";
+}
+
+void keyPressed(){
+  if (key=='1') { mode=1; applyDither(); }
+  if (key=='2') { mode=2; applyDither(); }
+  if (key=='3') { mode=3; applyDither(); }
+  if (key=='s'||key=='S') saveFrame("frames/dither-####.png");
+}
+
+void applyDither(){
+  out = img.copy();
+  out.loadPixels();
+  // work in float RGB for error diffusion
+  float[][] r = new float[out.width][out.height];
+  float[][] g = new float[out.width][out.height];
+  float[][] b = new float[out.width][out.height];
+
+  for (int y=0; y<out.height; y++){
+    for (int x=0; x<out.width; x++){
+      color c = out.pixels[y*out.width + x];
+      r[x][y] = red(c);
+      g[x][y] = green(c);
+      b[x][y] = blue(c);
+    }
+  }
+
+  color[] pal = (mode==1)?paletteBW: (mode==2)?paletteGray4: paletteCustom;
+
+  for (int y=0; y<out.height; y++){
+    for (int x=0; x<out.width; x++){
+      color cur = color(constrain(r[x][y],0,255),
+                        constrain(g[x][y],0,255),
+                        constrain(b[x][y],0,255));
+      color q = nearestColor(cur, pal);           // quantize
+      out.pixels[y*out.width + x] = q;
+
+      float er = red(cur)   - red(q);
+      float eg = green(cur) - green(q);
+      float eb = blue(cur)  - blue(q);
+      // Floyd–Steinberg diffusion weights:
+      diffuse(r,g,b, x+1, y  , er,eg,eb, 7.0/16.0);
+      diffuse(r,g,b, x-1, y+1, er,eg,eb, 3.0/16.0);
+      diffuse(r,g,b, x  , y+1, er,eg,eb, 5.0/16.0);
+      diffuse(r,g,b, x+1, y+1, er,eg,eb, 1.0/16.0);
+    }
+  }
+  out.updatePixels();
+}
+
+void diffuse(float[][] r, float[][] g, float[][] b,
+             int x, int y, float er, float eg, float eb, double w){
+  if (x<0 || y<0 || x>=out.width || y>=out.height) return;
+  r[x][y] += er * (float)w;
+  g[x][y] += eg * (float)w;
+  b[x][y] += eb * (float)w;
+}
+
+color nearestColor(color c, color[] pal){
+  // ===== EXPERIMENT: try LAB distance for better color perceptual match =====
+  float best = 1e9;
+  color bestC = pal[0];
+  for (color p : pal){
+    float dr = red(c)-red(p);
+    float dg = green(c)-green(p);
+    float db = blue(c)-blue(p);
+    float d2 = dr*dr + dg*dg + db*db;
+    if (d2 < best) { best = d2; bestC = p; }
+  }
+  return bestC;
+}
