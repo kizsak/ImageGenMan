@@ -1,0 +1,189 @@
+# daguerreotype_fit_to_framehole.py
+# Windows: py -m pip install pillow numpy && py daguerreotype_fit_to_framehole.py
+# macOS/Linux: python3 -m pip install pillow numpy && python3 daguerreotype_fit_to_framehole.py
+
+from PIL import Image, ImageOps, ImageFilter, ImageChops
+import numpy as np, os, math
+
+PHOTO  = "input.jpg"        # your photo
+FRAME  = "frame.jpg"    # PNG with alpha OR RGB (we can key a dark center)
+OUTPUT = "daguerreotype_framed.png"
+
+# ---- Fit controls ----
+BLEED_PX = 12              # extra pixels of photo beyond the hole (kept hidden under frame)
+FEATHER_PX = 8             # softness at the hole edge (avoids hard cut)
+SEAL_MARGIN_PX = 2         # shrink hole slightly so photo can't peek outside
+
+# ---- Inner shadow ----
+INNER_SHADOW_STRENGTH = 0.70
+SHADOW_SPREAD = 6
+SHADOW_BLUR = 22
+SHADOW_OFFSET_X = 2
+SHADOW_OFFSET_Y = -1
+
+# ---- Daguerreotype look ----
+MIRROR_IMAGE       = True
+GAMMA              = 0.92
+CONTRAST           = 1.36
+MICRO_CONTRAST     = 1.28
+VIGNETTE_STRENGTH  = 0.40
+SILVER_COOLING     = 0.14
+PLATE_SHEEN_AMT    = 0.36
+TARNISH_AMT        = 0.42
+
+# ---- Keying for RGB frames (if no alpha) ----
+KEY_DARK_THRESH  = 0.18    # 0..1: dark values treated as hole
+KEY_ERODE        = 2
+KEY_FEATHER      = 10
+
+from PIL import ImageEnhance
+
+# ================= Daguerreotype plate =================
+def to_np_gray(im): return np.asarray(ImageOps.grayscale(im)).astype(np.float32)/255.0
+def from_np_gray(a): return Image.fromarray((np.clip(a,0,1)*255).astype(np.uint8),"L")
+def s_curve(a,c): return np.clip((a-0.5)*c+0.5,0,1)
+def radial_vignette(w,h,s):
+    y,x=np.ogrid[:h,:w]; cx,cy=(w-1)/2,(h-1)/2
+    dx=(x-cx)/(w*0.5); dy=(y-cy)/(h*0.5)
+    r2=dx*dx+dy*dy
+    return (1.0-np.clip(r2,0,1)**0.7*s).astype(np.float32)
+def metallic_map(a,cool=0.2):
+    a=np.clip(a,0,1); r=0.90*a+0.10; g=0.92*a+0.08; b=0.95*a+0.05
+    r=r*(1-0.15*cool)+0.03*(1-cool); b=b*(1+0.20*cool)
+    return np.dstack([r,g,b]).clip(0,1)
+def highpass(img_gray,r=8):
+    blur=img_gray.filter(ImageFilter.GaussianBlur(r))
+    return ImageChops.subtract(img_gray,blur)
+def directional_sheen(w,h,amt,angle_deg=-18):
+    y,x=np.ogrid[:h,:w]; ang=math.radians(angle_deg)
+    line=(x*np.cos(ang)+y*np.sin(ang)); line=(line-line.min())/(line.max()-line.min()+1e-6)
+    sweep=0.5+0.5*np.sin((line-0.25)*math.pi*1.2); sweep=(sweep-0.5)*2.0
+    sheen=(1.0+sweep*amt).astype(np.float32)
+    lx=np.linspace(1.06,0.94,w).astype(np.float32); sheen*=lx[None,:]
+    return sheen
+def tarnish_layer(w,h,amt):
+    y,x=np.ogrid[:h,:w]; cx,cy=(w-1)/2,(h-1)/2
+    dx=(x-cx)/(w*0.5); dy=(y-cy)/(h*0.5)
+    r=np.sqrt(dx*dx+(dy*1.12)**2)
+    ring=np.clip((r-0.60)/0.18,0,1)*np.exp(-((r-0.82)**2)/0.10)
+    hue=(np.arctan2(dy,dx)/(2*math.pi)+0.5)
+    def hue_to_rgb(h):
+        r=np.clip(abs(h*6-3)-1,0,1); g=np.clip(2-abs(h*6-2),0,1); b=np.clip(2-abs(h*6-4),0,1)
+        return r,g,b
+    r,g,b=hue_to_rgb(hue)
+    rgb=np.dstack([r,g,b]); rgb=0.35*rgb+0.65*np.array([0.55,0.55,0.55])
+    return (rgb*(ring[...,None]*amt)).clip(0,1)
+
+def build_plate_at_size(photo_path, target_w, target_h):
+    im=Image.open(photo_path).convert("RGB")
+    if MIRROR_IMAGE: im=ImageOps.mirror(im)
+
+    # Fit the photo to the hole's aspect ratio without squishing:
+    ar_img = im.width / im.height
+    ar_target = target_w / target_h
+    if ar_img < ar_target:
+        # too tall -> scale to width, then center-crop height
+        new_w = target_w
+        new_h = int(new_w / ar_img)
+        im = im.resize((new_w, new_h), Image.LANCZOS)
+        top = (new_h - target_h)//2
+        im = im.crop((0, top, new_w, top+target_h))
+    else:
+        # too wide -> scale to height, then center-crop width
+        new_h = target_h
+        new_w = int(new_h * ar_img)
+        im = im.resize((new_w, new_h), Image.LANCZOS)
+        left = (new_w - target_w)//2
+        im = im.crop((left, 0, left+target_w, new_h))
+
+    w,h = im.size
+    g = to_np_gray(im); g = s_curve(g**GAMMA, CONTRAST)
+    hp = highpass(from_np_gray(g), 8)
+    g = np.clip(g + (np.asarray(hp).astype(np.float32)/255.0-0.5)*(MICRO_CONTRAST-1.0)*0.9, 0, 1)
+    g *= radial_vignette(w,h, VIGNETTE_STRENGTH)
+    rgb = metallic_map(g, SILVER_COOLING)
+    rgb = np.clip(rgb * directional_sheen(w,h, PLATE_SHEEN_AMT)[...,None], 0, 1)
+    rgb = np.clip(rgb + tarnish_layer(w,h, TARNISH_AMT), 0, 1)
+    return Image.fromarray((rgb*255).astype(np.uint8), "RGB").convert("RGBA")
+
+# ================= Frame / hole =================
+def hole_mask_from_frame(frame_rgba):
+    # alpha present -> opening is where alpha==0
+    alpha = frame_rgba.split()[3]
+    hole = ImageOps.invert(alpha)  # white = hole
+    return hole
+
+def key_dark_center_to_alpha(frame_rgb):
+    gray = ImageOps.grayscale(frame_rgb)
+    a = np.asarray(gray).astype(np.float32)/255.0
+    mask = (a <= KEY_DARK_THRESH).astype(np.uint8)*255
+    m = Image.fromarray(mask,"L")
+    if KEY_ERODE>0: m = m.filter(ImageFilter.MinFilter(2*KEY_ERODE+1))
+    if KEY_FEATHER>0: m = m.filter(ImageFilter.GaussianBlur(KEY_FEATHER))
+    alpha = ImageOps.invert(m)
+    r,g,b = frame_rgb.split()
+    return Image.merge("RGBA",(r,g,b,alpha)), m
+
+def shrink_and_feather(mask_l, shrink_px, feather_px):
+    m = mask_l
+    if shrink_px>0: m = m.filter(ImageFilter.MinFilter(2*shrink_px+1))
+    if feather_px>0: m = m.filter(ImageFilter.GaussianBlur(feather_px))
+    return m
+
+def add_inner_shadow(base_rgba, hole_mask):
+    # band just inside the edge
+    band = ImageChops.subtract(hole_mask, hole_mask.filter(ImageFilter.MinFilter(2*SHADOW_SPREAD+1)))
+    band = band.filter(ImageFilter.GaussianBlur(SHADOW_BLUR))
+    band = ImageChops.offset(band, SHADOW_OFFSET_X, SHADOW_OFFSET_Y)
+    alpha = band.point(lambda p: int(p * INNER_SHADOW_STRENGTH))
+    dark = Image.new("RGBA", base_rgba.size, (15,10,10,0))
+    dark.putalpha(alpha)
+    return Image.alpha_composite(base_rgba, dark)
+
+# ================= Main flow =================
+def main():
+    # 1) Load frame
+    fr_raw = Image.open(FRAME)
+    if fr_raw.mode != "RGBA":
+        fr_rgba, rough = key_dark_center_to_alpha(fr_raw.convert("RGB"))
+    else:
+        fr_rgba = fr_raw
+
+    W,H = fr_rgba.size
+
+    # 2) Hole mask from frame alpha
+    hole = hole_mask_from_frame(fr_rgba)              # white = hole
+    hole_tight = shrink_and_feather(hole, SEAL_MARGIN_PX, FEATHER_PX)
+
+    # 3) Get hole bbox to fit photo exactly (with bleed)
+    bbox = hole.getbbox()  # (l,t,r,b)
+    if bbox is None:
+        raise SystemExit("No hole detected in frame.")
+    l,t,r,b = bbox
+    hole_w = (r - l) + 2*BLEED_PX
+    hole_h = (b - t) + 2*BLEED_PX
+
+    # 4) Build daguerreotype plate cropped to hole aspect (no squish)
+    plate_crop = build_plate_at_size(PHOTO, hole_w, hole_h)
+
+    # 5) Place plate behind hole (centered with bleed)
+    canvas = Image.new("RGBA", (W,H), (0,0,0,0))
+    canvas.alpha_composite(plate_crop, (l - BLEED_PX, t - BLEED_PX))
+
+    # 6) Strictly clip plate INSIDE the hole (prevents bottom strip)
+    plate_inside = Image.composite(canvas, Image.new("RGBA",(W,H),(0,0,0,0)), hole_tight)
+
+    # 7) Inner shadow to add depth
+    plate_shadowed = add_inner_shadow(plate_inside, hole_tight)
+
+    # 8) Composite frame on top
+    out = Image.alpha_composite(plate_shadowed, fr_rgba)
+
+    # 9) Small finish
+    out = out.filter(ImageFilter.GaussianBlur(0.2))
+    out = out.filter(ImageFilter.UnsharpMask(radius=1.2, percent=120, threshold=3))
+    out.save(OUTPUT)
+    print(f"Saved {OUTPUT}  ({W}x{H})")
+
+if __name__ == "__main__":
+    main()
